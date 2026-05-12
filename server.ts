@@ -104,6 +104,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_read INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT,
+    date TEXT,
+    status TEXT,
+    year_month TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_id, date)
+  );
 `);
 
 // Lightweight schema migration for existing local databases.
@@ -1279,6 +1290,89 @@ res.json({ message: 'All notifications marked as read' });
     } catch (err) {
       console.error('Failed to fetch student progress:', err);
       res.status(500).json({ error: 'Failed to fetch progress' });
+    }
+  });
+
+  // Attendance API endpoints
+  app.get('/api/student/attendance', authenticateToken, (req: any, res) => {
+    if (req.user.role !== 'student') return res.sendStatus(403);
+
+    const currentDate = new Date();
+    const currentYearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
+    try {
+      const attendance = db.prepare(`
+        SELECT id, date, status, year_month, created_at, updated_at
+        FROM attendance
+        WHERE student_id = ? AND year_month = ?
+        ORDER BY date DESC
+      `).all(req.user.id, currentYearMonth) as Array<any>;
+
+      res.json(attendance);
+    } catch (err) {
+      console.error('Failed to fetch attendance:', err);
+      res.status(500).json({ error: 'Failed to fetch attendance' });
+    }
+  });
+
+  app.post('/api/student/attendance', authenticateToken, (req: any, res) => {
+    if (req.user.role !== 'student') return res.sendStatus(403);
+
+    const { date, status } = req.body;
+    if (!date || !status || !['present', 'absent'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid date or status' });
+    }
+
+    const currentDate = new Date();
+    const currentYearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
+    try {
+      const existing = db.prepare('SELECT id FROM attendance WHERE student_id = ? AND date = ?').get(req.user.id, date) as any;
+
+      if (existing) {
+        db.prepare(`
+          UPDATE attendance
+          SET status = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE student_id = ? AND date = ?
+        `).run(status, req.user.id, date);
+      } else {
+        db.prepare(`
+          INSERT INTO attendance (student_id, date, status, year_month, created_at, updated_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(req.user.id, date, status, currentYearMonth);
+      }
+
+      res.json({ success: true, message: 'Attendance saved' });
+    } catch (err) {
+      console.error('Failed to save attendance:', err);
+      res.status(500).json({ error: 'Failed to save attendance' });
+    }
+  });
+
+  app.get('/api/student/attendance/summary', authenticateToken, (req: any, res) => {
+    if (req.user.role !== 'student') return res.sendStatus(403);
+
+    const currentDate = new Date();
+    const currentYearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
+    try {
+      const summary = db.prepare(`
+        SELECT
+          SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as total_present,
+          SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as total_absent,
+          COUNT(*) as total_days
+        FROM attendance
+        WHERE student_id = ? AND year_month = ?
+      `).get(req.user.id, currentYearMonth) as any;
+
+      res.json({
+        total_present: summary?.total_present || 0,
+        total_absent: summary?.total_absent || 0,
+        total_days: summary?.total_days || 0,
+      });
+    } catch (err) {
+      console.error('Failed to fetch attendance summary:', err);
+      res.status(500).json({ error: 'Failed to fetch summary' });
     }
   });
 

@@ -54,3 +54,19 @@ export interface Notification {
   created_at?: string;
   is_read?: number;
 }
+
+export interface Attendance {
+  id: number;
+  student_id: string;
+  date: string;
+  status: 'present' | 'absent';
+  year_month: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceSummary {
+  total_present: number;
+  total_absent: number;
+  total_days: number;
+}

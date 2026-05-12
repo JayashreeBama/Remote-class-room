@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { 
-  UserCircle, 
-  Mail, 
-  Phone, 
-  BookOpen, 
-  GraduationCap, 
-  Briefcase, 
+import {
+  UserCircle,
+  Mail,
+  Phone,
+  BookOpen,
+  GraduationCap,
+  Briefcase,
   Calendar,
   Shield,
   ChevronLeft,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types';
 import { auth, db, doc, getDoc } from '../firebase';
+import AttendanceBox from '../components/AttendanceBox';
 
 interface ProfileProps {
   user: User | null;
@@ -247,6 +248,10 @@ export default function Profile({ user }: ProfileProps) {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <AttendanceBox studentId={profile.id} />
                 </div>
               </>
             )}
